@@ -1,0 +1,9 @@
+cargo:warning=Package name: dashboard
+cargo:warning=In workspace: true
+cargo:warning=Manifest directory: /home/lcy/COMP_project/Project-A_Phase 2_Code/dashboard
+cargo:warning=Target directory: /home/lcy/COMP_project/Project-A_Phase 2_Code/target
+cargo:warning=Skipping templates (not found at /home/lcy/COMP_project/Project-A_Phase 2_Code/dashboard/templates)
+cargo:warning=Skipping programfiles (not found at /home/lcy/COMP_project/Project-A_Phase 2_Code/dashboard/programfiles)
+cargo:warning=No assets were copied. Verify that 'templates' or 'programfiles' directories exist.
+cargo:rerun-if-changed=templates
+cargo:rerun-if-changed=programfiles

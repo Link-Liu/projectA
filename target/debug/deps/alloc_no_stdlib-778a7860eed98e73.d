@@ -1,0 +1,10 @@
+/home/lcy/COMP_project/Project-A_Phase 2_Code/target/debug/deps/alloc_no_stdlib-778a7860eed98e73.d: /home/lcy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloc-no-stdlib-2.0.4/src/lib.rs /home/lcy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloc-no-stdlib-2.0.4/src/allocated_memory/mod.rs /home/lcy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloc-no-stdlib-2.0.4/src/allocated_memory/index_macro.rs /home/lcy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloc-no-stdlib-2.0.4/src/stack_allocator.rs /home/lcy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloc-no-stdlib-2.0.4/src/allocated_stack_memory.rs /home/lcy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloc-no-stdlib-2.0.4/src/init.rs
+
+/home/lcy/COMP_project/Project-A_Phase 2_Code/target/debug/deps/liballoc_no_stdlib-778a7860eed98e73.rmeta: /home/lcy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloc-no-stdlib-2.0.4/src/lib.rs /home/lcy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloc-no-stdlib-2.0.4/src/allocated_memory/mod.rs /home/lcy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloc-no-stdlib-2.0.4/src/allocated_memory/index_macro.rs /home/lcy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloc-no-stdlib-2.0.4/src/stack_allocator.rs /home/lcy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloc-no-stdlib-2.0.4/src/allocated_stack_memory.rs /home/lcy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloc-no-stdlib-2.0.4/src/init.rs
+
+/home/lcy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloc-no-stdlib-2.0.4/src/lib.rs:
+/home/lcy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloc-no-stdlib-2.0.4/src/allocated_memory/mod.rs:
+/home/lcy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloc-no-stdlib-2.0.4/src/allocated_memory/index_macro.rs:
+/home/lcy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloc-no-stdlib-2.0.4/src/stack_allocator.rs:
+/home/lcy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloc-no-stdlib-2.0.4/src/allocated_stack_memory.rs:
+/home/lcy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloc-no-stdlib-2.0.4/src/init.rs:

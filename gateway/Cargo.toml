@@ -1,0 +1,9 @@
+[package]
+name = "gateway"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = {"version" = "1", "feature" = ["full"] }
+dashboard = { path = "../dashboard" } 
+sensor_sim = { path = "../sensor_sim" } 

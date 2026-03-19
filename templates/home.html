@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sensor Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0f1117;
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+      min-height: 100vh;
+    }
+    h1 { margin-bottom: 2rem; font-size: 1.5rem; letter-spacing: 0.05em; color: #a0c4ff; }
+    #chart-container {
+      background: #1a1d27;
+      border-radius: 12px;
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 900px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+    }
+    #status {
+      margin-top: 1rem;
+      font-size: 0.85rem;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+  <h1>Sensor Dashboard</h1>
+  <div id="chart-container">
+    <canvas id="sensorChart"></canvas>
+  </div>
+  <p id="status">Loading sensors...</p>
+
+  <script>
+    const NUM_POINTS = 20;
+
+    const COLORS = [
+      '#a0c4ff', '#ffadad', '#caffbf', '#ffd6a5',
+      '#fdffb6', '#bdb2ff', '#ffc6ff', '#9bf6ff',
+    ];
+
+    async function fetchJSON(url) {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+      return res.json();
+    }
+
+    async function init() {
+      const status = document.getElementById('status');
+      try {
+        const { sensors } = await fetchJSON('/registered_sensors');
+        status.textContent = `Fetching data for ${sensors.length} sensors...`;
+
+        const results = await Promise.all(
+          sensors.map(id => fetchJSON(`/data/${id}/${NUM_POINTS}`))
+        );
+
+        const labels = Array.from({ length: NUM_POINTS }, (_, i) => `T${i + 1}`);
+
+        const datasets = results.map((res, idx) => ({
+          label: res.sensor_name,
+          data: res.data.map(v => {
+            const n = parseFloat(v);
+            return isNaN(n) ? 0 : n;
+          }),
+          borderColor: COLORS[idx % COLORS.length],
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: 0.3,
+        }));
+
+        new Chart(document.getElementById('sensorChart'), {
+          type: 'line',
+          data: { labels, datasets },
+          options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              legend: {
+                labels: { color: '#ccc', font: { size: 12 } }
+              },
+              tooltip: { backgroundColor: '#2a2d3e' }
+            },
+            scales: {
+              x: {
+                ticks: { color: '#888' },
+                grid: { color: '#2a2d3e' }
+              },
+              y: {
+                ticks: { color: '#888' },
+                grid: { color: '#2a2d3e' }
+              }
+            }
+          }
+        });
+
+        status.textContent = `Showing ${sensors.length} sensors, ${NUM_POINTS} data points each.`;
+      } catch (err) {
+        status.textContent = `Error: ${err.message}`;
+        console.error(err);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
