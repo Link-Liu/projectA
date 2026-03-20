@@ -37,6 +37,17 @@ pub struct SensorBufferManager {
 
 impl SensorBufferManager {
     /// Create a manager with buffer capacity
+    /// 
+    ///  Parameters:
+    ///  - capacity: the capacity of the buffer
+    /// 
+    ///  Returns:
+    ///  - A new SensorBufferManager
+    /// 
+    /// Example:
+    /// ```
+    /// let buffer_mgr = SensorBufferManager::new(10000);
+    /// ```
     pub fn new(capacity: usize) -> Self {
         let buffer = Arc::new(Mutex::new(VecDeque::with_capacity(capacity)));
         SensorBufferManager {
@@ -53,32 +64,53 @@ impl SensorBufferManager {
     }
 
     ///  Register a Sensor (spawns reader thread)
+    ///  Parameters:
+    ///  - sensor: the sensor to register
+    ///  - converter: a function to convert the sensor data to SensorData
+    /// 
+    ///  Returns:
+    ///  - None
+    /// 
+    /// Example:
+    /// ```
+    /// let buffer_mgr = SensorBufferManager::new(10000);
+    /// buffer_mgr.register_sensor(sensor, converter);
+    /// ```
     pub fn register_sensor<S, F>(&mut self, sensor: S, converter: F ) 
     where 
     S: Sensor + Send + 'static,
     S::SensorReading: Send + 'static,
     F: Fn(S::SensorReading) -> SensorData + Send + Sync + 'static,
     {
+        // clone the shared resources
         let shared_buffer = Arc::clone(&self.buffer);
         let stop_flag = Arc::clone(&self.stop_flag);
         let  has_data = Arc::clone(&self.has_data);
         let overwrite_count = Arc::clone(&self.overwrite_count);
         let write_count = Arc::clone(&self.write_count);
+        // spawn a new thread to read the sensor data
         let handle = std::thread::spawn(move || {
+            // clone the sensor
             let sensor = sensor;
+            // while the buffer is not stopped
             while !*stop_flag.lock().unwrap() {
+                // while the sensor has data, we read all the data from the sensor
                 while let Some(content) = sensor.read() {
                     let data = converter(content);
                     let mut shared_buffer = shared_buffer.lock().unwrap();
                     if shared_buffer.len() < shared_buffer.capacity() {
+                        // store the data and increase the write count
                         shared_buffer.push_back(data);
-                        let mut overwrite_count = overwrite_count.lock().unwrap();
-                        *overwrite_count += 1;
+                        let mut write_count = write_count.lock().unwrap();
+                        *write_count += 1;
                         has_data.notify_one();
                     }
                     else {
+                        // data loss here, we alarm the user
                         shared_buffer.pop_front();
                         shared_buffer.push_back(data);
+                        // increase the overwrite count and the write count
+                        // we overwrite the oldest data
                         let mut overwrite_count = overwrite_count.lock().unwrap();
                         *overwrite_count += 1;
                         let mut write_count = write_count.lock().unwrap();
@@ -95,8 +127,20 @@ impl SensorBufferManager {
     }
 
     /// Pop reading for processing (blocking)
+    /// 
+    ///  Parameters:
+    ///  - None
+    /// 
+    ///  Returns:
+    ///  - The data from the buffer
+    /// 
+    /// Example:
+    /// ```
+    /// let data = buffer_mgr.pop_blocking();
+    /// ```
     pub fn pop_blocking(&self) -> SensorData {
         let mut shared_buffer = self.buffer.lock().unwrap();
+        // while the buffer is empty, we wait for the data
         while shared_buffer.is_empty() {
             shared_buffer = self.has_data.wait(shared_buffer).unwrap();
         }
@@ -105,23 +149,40 @@ impl SensorBufferManager {
         return shared_buffer.pop_front().unwrap()
     }
     /// Pop with timeout
+    /// 
+    ///  Parameters:
+    ///  - duration: the timeout duration
+    /// 
+    ///  Returns:
+    ///  - The data from the buffer
+    /// 
+    /// Example:
+    /// ```
+    /// let data = buffer_mgr.pop_with_timeout(Duration::from_millis(100));
+    /// ```
     pub fn pop_with_timeout(&self, duration: Duration) -> Option<SensorData> {
            let mut shared_buffer = self.buffer.lock().unwrap();
-           
+           // while the buffer is empty, we wait for the data
            if shared_buffer.is_empty() {
                 while shared_buffer.is_empty() {
                     let (new_shared_buffer, result) = self.has_data.wait_timeout(shared_buffer, duration).unwrap();
                     shared_buffer = new_shared_buffer;
                     if result.timed_out() {
+                        // timeout, we return None
                         return None;
                     }
                     else {
+                        // we have data, we pop the data and return it
+                        let mut pop_count = self.pop_count.lock().unwrap();
+                        *pop_count += 1;
                         return shared_buffer.pop_front();
+
                     }
                 }
                 return None;
            }
            else {
+            // pop the data and increase the pop count
             let mut pop_count = self.pop_count.lock().unwrap();
             *pop_count += 1;
             return shared_buffer.pop_front();
@@ -129,6 +190,17 @@ impl SensorBufferManager {
     }
     
     /// Get buffer utilization statistics
+    /// 
+    ///  Parameters:
+    ///  - None
+    /// 
+    ///  Returns:
+    ///  - The buffer statistics
+    /// 
+    /// Example:
+    /// ```
+    /// let stats = buffer_mgr.get_stats();
+    /// ```
     pub fn get_stats(&self) -> BufferStats {
         let shared_buffer = self.buffer.lock().unwrap();
         let count = shared_buffer.len();
@@ -149,7 +221,19 @@ impl SensorBufferManager {
     }
     
     /// Shutdown all reader threads
+    /// 
+    ///  Parameters:
+    ///  - None
+    /// 
+    ///  Returns:
+    ///  - None
+    /// 
+    /// Example:
+    /// ```
+    /// buffer_mgr.shutdown();
+    /// ```
     pub fn shutdown(&mut self) {
+        // we set the stop flag to true, use local variable to avoid dead lock
         {
             let mut stop_flag = self.stop_flag.lock().unwrap();
             *stop_flag = true;
