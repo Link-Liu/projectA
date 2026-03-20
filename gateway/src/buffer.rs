@@ -7,18 +7,32 @@ use sensor_sim::force_sensor::ForceReading;
 use sensor_sim::thermometer::ThermoReading;
 use sensor_sim::traits::Sensor;
 
+/// SensorData is the data type for the sensor data
 pub enum SensorData {
     ThermoReading(ThermoReading),
     AccelReading(AccelReading),
     ForceReading(ForceReading),
 }
 
+/// used to store the buffer statistics
+pub struct BufferStats {
+    pub utilization: f32,
+    pub overwrite_count: usize,
+    pub write_rate: f32,
+    pub pop_rate: f32
+}
+
+/// Component 1: Buffer Management
 pub struct SensorBufferManager {
-    capacity: usize,
-    buffer: Arc<Mutex<VecDeque<SensorData>>>,
-    readers: Vec<JoinHandle<()>>,
-    stop_flag: Arc<Mutex<bool>>,
-    has_data: Arc<Condvar>
+    capacity: usize, // how many data we have
+    buffer: Arc<Mutex<VecDeque<SensorData>>>, // the buffer that stores the data
+    readers: Vec<JoinHandle<()>>, // a vector of handles to the reader threads
+    stop_flag: Arc<Mutex<bool>>, // a flag to stop the buffer, when true, stop
+    has_data: Arc<Condvar>, // a condition variable to wait for data
+    overwrite_count: Arc<Mutex<usize>>, // a counter to count the number of overwrites
+    write_count: Arc<Mutex<usize>>, // a counter to count the number of writes
+    pop_count: Arc<Mutex<usize>>, // a counter to count the number of pops
+    start_time: std::time::Instant // the start time of the buffer
 }
 
 impl SensorBufferManager {
@@ -30,7 +44,11 @@ impl SensorBufferManager {
             buffer : buffer,
             readers : Vec::new(),
             stop_flag : Arc::new(Mutex::new(false)),
-            has_data : Arc::new(Condvar::new())
+            has_data : Arc::new(Condvar::new()),
+            overwrite_count : Arc::new(Mutex::new(0)),
+            write_count : Arc::new(Mutex::new(0)),
+            pop_count : Arc::new(Mutex::new(0)),
+            start_time : std::time::Instant::now()
         }
     }
 
@@ -44,26 +62,33 @@ impl SensorBufferManager {
         let shared_buffer = Arc::clone(&self.buffer);
         let stop_flag = Arc::clone(&self.stop_flag);
         let  has_data = Arc::clone(&self.has_data);
+        let overwrite_count = Arc::clone(&self.overwrite_count);
+        let write_count = Arc::clone(&self.write_count);
         let handle = std::thread::spawn(move || {
             let sensor = sensor;
             while !*stop_flag.lock().unwrap() {
-                if let Some(content) = sensor.read() {
+                while let Some(content) = sensor.read() {
                     let data = converter(content);
                     let mut shared_buffer = shared_buffer.lock().unwrap();
                     if shared_buffer.len() < shared_buffer.capacity() {
                         shared_buffer.push_back(data);
+                        let mut overwrite_count = overwrite_count.lock().unwrap();
+                        *overwrite_count += 1;
                         has_data.notify_one();
                     }
                     else {
                         shared_buffer.pop_front();
                         shared_buffer.push_back(data);
+                        let mut overwrite_count = overwrite_count.lock().unwrap();
+                        *overwrite_count += 1;
+                        let mut write_count = write_count.lock().unwrap();
+                        *write_count += 1;
                         has_data.notify_one();
                         println!("Attention! Buffer is full, overwriting oldest data");
                     }
                 }
-                else {
-                    std::thread::sleep(Duration::from_millis(10));
-                }
+                std::thread::sleep(Duration::from_millis(10));
+
             }
         });
         self.readers.push(handle);
@@ -75,6 +100,8 @@ impl SensorBufferManager {
         while shared_buffer.is_empty() {
             shared_buffer = self.has_data.wait(shared_buffer).unwrap();
         }
+        let mut pop_count = self.pop_count.lock().unwrap();
+        *pop_count += 1;
         return shared_buffer.pop_front().unwrap()
     }
     /// Pop with timeout
@@ -95,20 +122,38 @@ impl SensorBufferManager {
                 return None;
            }
            else {
-                return shared_buffer.pop_front()
+            let mut pop_count = self.pop_count.lock().unwrap();
+            *pop_count += 1;
+            return shared_buffer.pop_front();
            }
     }
+    
     /// Get buffer utilization statistics
-    pub fn get_stats(&self) -> f32 {
+    pub fn get_stats(&self) -> BufferStats {
         let shared_buffer = self.buffer.lock().unwrap();
         let count = shared_buffer.len();
         let capacity = self.capacity;
-        count as f32 / capacity as f32
+        let utilization = count as f32 / capacity as f32;
+        let overwrite_count = self.overwrite_count.lock().unwrap();
+        let write_count = self.write_count.lock().unwrap();
+        let pop_count = self.pop_count.lock().unwrap();
+        let write_rate = *write_count as f32 / (std::time::Instant::now() - self.start_time).as_secs() as f32;
+        let pop_rate = *pop_count as f32 / (std::time::Instant::now() - self.start_time).as_secs() as f32;
+        return BufferStats {
+            utilization : utilization,
+            overwrite_count : *overwrite_count,
+            write_rate : write_rate,
+            pop_rate : pop_rate
+        };
+
     }
+    
     /// Shutdown all reader threads
     pub fn shutdown(&mut self) {
-        let mut stop_flag = self.stop_flag.lock().unwrap();
-        *stop_flag = true;
+        {
+            let mut stop_flag = self.stop_flag.lock().unwrap();
+            *stop_flag = true;
+        }
         while !self.readers.is_empty() {
             let handle = self.readers.pop().unwrap();
             let _ = handle.join().unwrap();

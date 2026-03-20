@@ -23,7 +23,7 @@ async fn main() {
     accel_1.start();
     accel_2.start();
     force_1.start();
-    let mut buffer_mgr = SensorBufferManager::new(10);
+    let mut buffer_mgr = SensorBufferManager::new(10000);
     buffer_mgr.register_sensor(thermo_1, SensorData::ThermoReading);
     buffer_mgr.register_sensor(thermo_2, SensorData::ThermoReading);
     buffer_mgr.register_sensor(accel_1, SensorData::AccelReading);
