@@ -1,8 +1,7 @@
 // DataStorage (Component 3) 
 use std::fs::OpenOptions;
-use std::sync::{Arc, RwLock}; // Use RwLock for thread-safe file access (allows multiple readers or one writer)
-use serde::Serialize;
-use crate::common::AggregatedFrame;
+use std::sync::{Arc, RwLock};
+use crate::AggregatedFrame::AggregatedFrame;
 use serde_json;
 use std::io::{Read, Write, Result, Error};
 use std::io::ErrorKind;
@@ -10,32 +9,35 @@ use std::io::ErrorKind;
 /// Core DataStorage struct 
 pub struct DataStorage {
     file_path: String,          // Path for Web Server to read
-    file: Arc<RwLock<std::fs::File>>, // Thread-safe file handle (prevents race conditions)
+    lock: Arc<RwLock<()>>,
 }
 
 impl DataStorage {
     /// Create a new DataStorage instance (pre-opens file for performance)
     pub fn new(file_path: &str) -> Result<Self> {
-        // Open file with safe configuration
-        let file = OpenOptions::new()
+        // Ensure target file exists
+        OpenOptions::new()
             .create(true)          
-            .append(true)      
-            .read(true)            
-            .write(true)           
+            .append(true)
             .open(file_path)?;
 
         Ok(Self {
             file_path: file_path.to_string(),
-            file: Arc::new(RwLock::new(file)), // Wrap in RwLock for thread safety
+            lock: Arc::new(RwLock::new(())),
         })
     }
 
     /// Write aggregated frame to file (core requirement)
     
     pub fn write(&self, frame: AggregatedFrame) -> Result<()> {
-        // Acquire lock: ensures only one thread writes at a time (prevents data corruption)
-        let mut file = self.file.write()
+        // Acquire lock: ensures only one writer at a time
+        let _guard = self.lock.write()
             .map_err(|e| Error::new(std::io::ErrorKind::Other, format!("Lock error: {}", e)))?;
+
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.file_path)?;
 
         // Step 1: Serialize frame to JSON (parsable by Web Server)
         let json_str = serde_json::to_string(&frame)
@@ -52,20 +54,30 @@ impl DataStorage {
 
     /// Ensures buffered data is persisted to physical disk (prevents data loss on crash)
     pub fn flush(&self) -> Result<()> {
-        let mut file = self.file.write()
+        let _guard = self.lock.write()
             .map_err(|e| Error::new(std::io::ErrorKind::Other, format!("Lock error: {}", e)))?;
+
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.file_path)?;
+
         self.flush_internal(&mut file)
     }
 
     /// Read file content (shared read lock - multiple readers allowed)
     pub fn read_file(&self) -> Result<String> {
-        // Acquire shared read lock (multiple threads can read simultaneously)
-        let file = self.file.read()
+        // Acquire shared read lock (multiple readers can read concurrently)
+        let _guard = self.lock.read()
             .map_err(|e| Error::new(ErrorKind::Other, format!("Read lock error (poisoned): {}", e)))?;
+
+        let mut file = OpenOptions::new()
+            .read(true)
+            .open(&self.file_path)?;
 
         // Read entire file content (JSON lines format)
         let mut content = String::new();
-        std::io::Read::read_to_string(&*file, &mut content)?;
+        file.read_to_string(&mut content)?;
         
         Ok(content)
     }
