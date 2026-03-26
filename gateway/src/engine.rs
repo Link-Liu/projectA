@@ -1,9 +1,11 @@
-use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}};
+use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 use std::thread::{self, JoinHandle}; 
 use std::time::{Duration, Instant};
 use std::collections::HashMap;
 
-use crate::buffer::{SensorBufferManager, SensorData}; 
+use crate::buffer::{SensorBufferManager, SensorKind}; 
+use crate::AggregatedFrame::{AggregatedFrame, SensorInfo};
+use crate::DataStorage::DataStorage;
 
 struct SensorStats {
     count: usize,
@@ -77,58 +79,74 @@ impl AggregationEngine {
     pub fn start(
         &mut self, 
         buffer_manager: Arc<SensorBufferManager>, 
-        storage: Arc<DataStorage> // C3 待实现
+        // storage: Arc<DataStorage> // 如果还没定义 DataStorage，先注释掉
     ) {
         let num_workers = self.config.num_workers;
 
         for i in 0..num_workers {
             let shutdown = Arc::clone(&self.shutdown_flag);
             let buffer = Arc::clone(&buffer_manager);
-            // let storage_out = Arc::clone(&storage);
             let threshold = self.config.anomaly_threshold;
             let window_dur = self.config.window_duration;
 
             let handle = thread::spawn(move || {
-                // 每个线程维护一个状态表，Key 是传感器 ID，Value 是统计状态
                 let mut sensor_map: HashMap<String, SensorStats> = HashMap::new();
                 let mut window_start = Instant::now();
 
-                // 直到收到关机指令
                 while !shutdown.load(Ordering::SeqCst) {
-                    
-                    // --- 步骤 1: 获取数据 ---
+                    // 修正：将逻辑放入 if let 内部，确保 id 和 val 可用
                     if let Some(sensor_data) = buffer.pop_with_timeout(Duration::from_millis(100)) {
-                        // 识别 Sensor ID 和数值
-                        let (id, val) = match sensor_data {
-                            SensorData::ThermoReading(t) => (t.id().to_string(), t.temperature() as f64),
-                            SensorData::AccelReading(a) => {
-                                let mag = (a.x*a.x + a.y*a.y + a.z*a.z).sqrt();
-                                (a.id().to_string(), mag as f64)
+                        let (id, val) = match sensor_data.kind {
+                            SensorKind::ThermoReading(t) => (sensor_data.id, t.temperature_celsius as f64),
+                            SensorKind::AccelReading(a) => {
+                                let mag = (a.acceleration_x * a.acceleration_x + a.acceleration_y * a.acceleration_y  + a.acceleration_z * a.acceleration_z).sqrt();
+                                (sensor_data.id, mag as f64)
                             },
-                            SensorData::ForceReading(f) => {
-                                let mag = (f.x*f.x + f.y*f.y + f.z*f.z).sqrt();
-                                (f.id().to_string(), mag as f64)
+                            SensorKind::ForceReading(f) => {
+                                let mag = (f.force_x * f.force_x  + f.force_y * f.force_y  + f.force_z * f.force_z).sqrt();
+                                (sensor_data.id, mag as f64)
                             }
                         };
-                    }
 
-                        let stats = sensor_map.entry(id.clone()).or_insert_with(SensorStats::new);
+                        // 这里的逻辑必须在 if let 的 {} 里面
+                        let stats: &mut SensorStats = sensor_map.entry(id.clone()).or_insert_with(SensorStats::new);
                         stats.update(val);
 
-                        // anomaly detection
+                        // 异常检测
                         let std_dev = stats.get_std_dev();
                         if stats.count > 10 && (val - stats.mean).abs() > threshold * std_dev {
                             println!("Anomaly detected for sensor {}: value={}, mean={}, std_dev={}", id, val, stats.mean, std_dev);
                         }
-                    
+                    } // if let 结束
 
-                    // check if window duration ended
+                    // 检查窗口是否结束
                     if window_start.elapsed() >= window_dur {
-                        if !sensor_map.is_empty() {
-                            println!("Worker {}: Window ended, processing {} sensors", i, sensor_map.len());
+                        let now = std::time::SystemTime::now();
+                        let start_time = now - window_dur;
+                        for (id, stats) in &sensor_map
+                        {
+                            let sensor_info = SensorInfo
+                            {
+                                sensor_id: id.clone(),
+                                total_readings: stats.count as u32,
+                                min_value: stats.min,
+                                max_value: stats.max,
+                                avg_value: stats.mean,
+                                std_dev: stats.get_std_dev(),
+                            };
+                            let frame = AggregatedFrame
+                            {
+                                frame_id: format!("{}-{}", id, now.duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()),
+                                window_start: start_time,
+                                window_end: now,
+                                sensor_info,
+                                anomaly_info: None, 
+                            };
+                            storage_out.write_frame(frame);
                         }
-                        sensor_map.clear();
-                        window_start = Instant::now();
+                    sensor_map.clear();
+                    window_start = Instant::now();
+
                     }
                 }
                 println!("Worker {}: Shutting down gracefully", i);
