@@ -6,6 +6,9 @@ use sensor_sim::{
     traits::Sensor,
 };
 pub mod buffer;
+pub mod DataStorage;
+pub mod AggregatedFrame;
+pub mod engine;
 use crate::buffer::{SensorBufferManager, SensorData};
 
 #[tokio::main]
