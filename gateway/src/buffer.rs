@@ -8,7 +8,12 @@ use sensor_sim::thermometer::ThermoReading;
 use sensor_sim::traits::Sensor;
 
 /// SensorData is the data type for the sensor data
-pub enum SensorData {
+pub struct SensorData {
+    pub id: String,
+    pub kind: SensorKind,
+}
+
+pub enum SensorKind {
     ThermoReading(ThermoReading),
     AccelReading(AccelReading),
     ForceReading(ForceReading),
@@ -80,7 +85,7 @@ impl SensorBufferManager {
     where 
     S: Sensor + Send + 'static,
     S::SensorReading: Send + 'static,
-    F: Fn(S::SensorReading) -> SensorData + Send + Sync + 'static,
+    F: Fn(S::SensorReading) -> SensorKind + Send + Sync + 'static,
     {
         // clone the shared resources
         let shared_buffer = Arc::clone(&self.buffer);
@@ -96,7 +101,10 @@ impl SensorBufferManager {
             while !*stop_flag.lock().unwrap() {
                 // while the sensor has data, we read all the data from the sensor
                 while let Some(content) = sensor.read() {
-                    let data = converter(content);
+                    let data = SensorData {
+                        id: sensor.id(),
+                        kind: converter(content),
+                    };
                     let mut shared_buffer = shared_buffer.lock().unwrap();
                     if shared_buffer.len() < shared_buffer.capacity() {
                         // store the data and increase the write count
@@ -108,6 +116,10 @@ impl SensorBufferManager {
                     else {
                         // data loss here, we alarm the user
                         shared_buffer.pop_front();
+                        let data = SensorData {
+                            id: sensor.id(),
+                            kind: converter(content),
+                        };
                         shared_buffer.push_back(data);
                         // increase the overwrite count and the write count
                         // we overwrite the oldest data
