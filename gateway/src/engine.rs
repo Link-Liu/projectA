@@ -7,14 +7,16 @@ use crate::buffer::{SensorBufferManager, SensorKind};
 use crate::AggregatedFrame::{AggregatedFrame, SensorInfo};
 use crate::DataStorage::DataStorage;
 
+// maintain statistical information for each sensor using welford's
 struct SensorStats {
-    count: usize,
+    count: usize, // number of readings
     mean: f64,
     m2: f64,
     min: f64,
     max: f64,
 }
 
+// implementation of SensorStats structure
 impl SensorStats {
     fn new() -> Self {
         Self {
@@ -53,9 +55,9 @@ impl SensorStats {
 
 pub struct EngineConfiguration 
 {
-    pub window_duration: Duration, //窗口时长 比如每五分钟计算一次平均值
-    pub num_workers: usize, //工作线程数量
-    pub anomaly_threshold: f64, //异常检测阈值
+    pub window_duration: Duration,
+    pub num_workers: usize, 
+    pub anomaly_threshold: f64,
     
 }
 
@@ -65,6 +67,7 @@ pub struct AggregationEngine
     config: EngineConfiguration,
     workers: Vec<JoinHandle<()>>,
     shutdown_flag: Arc<AtomicBool>,
+
 }
 
 impl AggregationEngine {
@@ -76,11 +79,13 @@ impl AggregationEngine {
         }
     }
 
-    pub fn start(
+    pub fn start
+    (
         &mut self, 
         buffer_manager: Arc<SensorBufferManager>, 
-        // storage: Arc<DataStorage> // 如果还没定义 DataStorage，先注释掉
-    ) {
+        storage: Arc<DataStorage> 
+    ) 
+    {
         let num_workers = self.config.num_workers;
 
         for i in 0..num_workers {
@@ -88,6 +93,7 @@ impl AggregationEngine {
             let buffer = Arc::clone(&buffer_manager);
             let threshold = self.config.anomaly_threshold;
             let window_dur = self.config.window_duration;
+            let storage_out = Arc::clone(&storage);
 
             let handle = thread::spawn(move || {
                 let mut sensor_map: HashMap<String, SensorStats> = HashMap::new();
@@ -142,7 +148,7 @@ impl AggregationEngine {
                                 sensor_info,
                                 anomaly_info: None, 
                             };
-                            storage_out.write_frame(frame);
+                            storage_out.write(frame);
                         }
                     sensor_map.clear();
                     window_start = Instant::now();
