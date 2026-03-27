@@ -26,22 +26,195 @@
       max-width: 900px;
       box-shadow: 0 4px 24px rgba(0,0,0,0.4);
     }
+    #chart-row {
+      display: flex;
+      gap: 1rem;
+      align-items: stretch;
+    }
+    #chart-canvas-wrap {
+      flex: 1;
+      min-width: 0;
+    }
+    #detail-panel {
+      width: 280px;
+      flex: 0 0 280px;
+      background: #12141c;
+      border: 1px solid #2a2d3e;
+      border-radius: 12px;
+      padding: 1rem;
+    }
+    #detail-panel h2 {
+      font-size: 0.95rem;
+      margin-bottom: 0.75rem;
+      color: #a0c4ff;
+      letter-spacing: 0.03em;
+    }
+    .kv {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.35rem 0;
+      border-bottom: 1px solid rgba(42,45,62,0.7);
+      font-size: 0.85rem;
+    }
+    .kv:last-child { border-bottom: none; }
+    .k { color: #9aa3b2; }
+    .v { color: #e0e0e0; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #detail-anomaly {
+      margin-top: 0.75rem;
+      padding: 0.6rem 0.75rem;
+      border-radius: 10px;
+      border: 1px solid #2a2d3e;
+      background: rgba(255, 77, 77, 0.06);
+      color: #ffd6d6;
+      font-size: 0.85rem;
+      line-height: 1.2rem;
+      display: none;
+    }
+    #detail-anomaly strong { color: #ffadad; }
+    @media (max-width: 980px) {
+      #chart-row { flex-direction: column; }
+      #detail-panel { width: 100%; flex: 1 1 auto; }
+    }
+    #controls {
+      width: 100%;
+      max-width: 900px;
+      margin: 0 0 1rem 0;
+      background: #12141c;
+      border: 1px solid #2a2d3e;
+      border-radius: 12px;
+      padding: 1rem;
+    }
+    #controls-header {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      margin-bottom: 0.75rem;
+    }
+    #sensor-actions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .btn {
+      padding: 0.5rem 0.75rem;
+      border-radius: 10px;
+      border: 1px solid #2a2d3e;
+      background: #1a1d27;
+      color: #e0e0e0;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .btn:hover { background: #22263a; }
+    #sensor-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 0.5rem 0.75rem;
+      max-height: 220px;
+      overflow: auto;
+      padding-right: 0.25rem;
+    }
+    .sensor-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid #2a2d3e;
+      border-radius: 10px;
+      padding: 0.5rem 0.6rem;
+      user-select: none;
+    }
+    .sensor-item input { accent-color: #a0c4ff; }
+    .sensor-item span {
+      font-size: 0.85rem;
+      color: #ddd;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     #status {
       margin-top: 1rem;
       font-size: 0.85rem;
       color: #888;
     }
+    #alerts {
+      width: 100%;
+      max-width: 900px;
+      margin-top: 1rem;
+      background: #12141c;
+      border: 1px solid #2a2d3e;
+      border-radius: 12px;
+      padding: 1rem;
+    }
+    #alerts h2 {
+      font-size: 0.95rem;
+      margin-bottom: 0.75rem;
+      color: #ffadad;
+      letter-spacing: 0.03em;
+    }
+    #alerts-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      max-height: 220px;
+      overflow: auto;
+      padding-right: 0.25rem;
+    }
+    .alert-item {
+      border-left: 3px solid #ff4d4d;
+      background: rgba(255, 77, 77, 0.07);
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      color: #ffd6d6;
+      font-size: 0.85rem;
+      line-height: 1.25rem;
+    }
+    .alert-meta {
+      color: #ffadad;
+      font-weight: 600;
+    }
   </style>
 </head>
 <body>
   <h1>Sensor Dashboard</h1>
+  <div id="controls">
+    <div id="controls-header">
+      <div id="sensor-actions">
+        <button class="btn" id="select-all">Select all</button>
+        <button class="btn" id="select-none">Select none</button>
+      </div>
+    </div>
+    <div id="sensor-list"></div>
+  </div>
   <div id="chart-container">
-    <canvas id="sensorChart"></canvas>
+    <div id="chart-row">
+      <div id="chart-canvas-wrap">
+        <canvas id="sensorChart"></canvas>
+      </div>
+      <div id="detail-panel">
+        <h2>Selected point</h2>
+        <div class="kv"><div class="k">Time</div><div class="v" id="detail-time">—</div></div>
+        <div class="kv"><div class="k">Sensor</div><div class="v" id="detail-sensor">—</div></div>
+        <div class="kv"><div class="k">Avg</div><div class="v" id="detail-avg">—</div></div>
+        <div class="kv"><div class="k">Min</div><div class="v" id="detail-min">—</div></div>
+        <div class="kv"><div class="k">Max</div><div class="v" id="detail-max">—</div></div>
+        <div class="kv"><div class="k">Std dev</div><div class="v" id="detail-std">—</div></div>
+        <div id="detail-anomaly"></div>
+      </div>
+    </div>
   </div>
   <p id="status">Loading sensors...</p>
+  <div id="alerts">
+    <h2>Real-time Alert Log</h2>
+    <ul id="alerts-list"></ul>
+  </div>
 
   <script>
     const NUM_POINTS = 20;
+    const REFRESH_MS = 1500;
 
     const COLORS = [
       '#a0c4ff', '#ffadad', '#caffbf', '#ffd6a5',
@@ -54,42 +227,201 @@
       return res.json();
     }
 
-    async function init() {
+    function formatNumber(n) {
+      if (typeof n !== 'number' || !isFinite(n)) return '0';
+      return n.toFixed(3);
+    }
+
+    function setDetail(sensorLabel, point) {
+      document.getElementById('detail-time').textContent = point?.x ?? '—';
+      document.getElementById('detail-sensor').textContent = sensorLabel ?? '—';
+      document.getElementById('detail-avg').textContent = formatNumber(point?.y);
+      document.getElementById('detail-min').textContent = formatNumber(point?.min);
+      document.getElementById('detail-max').textContent = formatNumber(point?.max);
+      document.getElementById('detail-std').textContent = formatNumber(point?.std_dev);
+
+      const box = document.getElementById('detail-anomaly');
+      const a = point?.anomaly_info;
+      if (a && a !== null) {
+        const type = a.anomaly_type ?? 'anomaly';
+        const value = a.anomaly_value ?? '';
+        const desc = a.description ?? '';
+        box.style.display = 'block';
+        box.innerHTML = `<strong>Anomaly</strong>: ${type} (value=${value})<br/>${desc}`;
+      } else {
+        box.style.display = 'none';
+        box.innerHTML = '';
+      }
+    }
+
+    function renderAlerts(alerts) {
+      const list = document.getElementById('alerts-list');
+      list.innerHTML = '';
+      if (!alerts.length) {
+        const li = document.createElement('li');
+        li.className = 'alert-item';
+        li.innerHTML = `<span class="alert-meta">OK</span> No anomalies detected in latest window.`;
+        list.appendChild(li);
+        return;
+      }
+      for (const a of alerts.slice(0, 50)) {
+        const li = document.createElement('li');
+        li.className = 'alert-item';
+        const type = a.anomaly_type || 'anomaly';
+        const value = a.anomaly_value;
+        const desc = a.description || '';
+        li.innerHTML = `<span class="alert-meta">[${a.t}] ${a.sensor_id}</span> ${type} (value=${value}) ${desc}`;
+        list.appendChild(li);
+      }
+    }
+
+    let chart = null;
+    let allSensors = [];
+    let selectedSensors = new Set();
+
+    function getVisibleSensors() {
+      // Preserve original ordering from /registered_sensors
+      return allSensors.filter(s => selectedSensors.has(s));
+    }
+
+    function buildSensorControls(sensors) {
+      allSensors = sensors.slice();
+      selectedSensors = new Set(sensors); // default: all selected
+
+      const list = document.getElementById('sensor-list');
+      const btnAll = document.getElementById('select-all');
+      const btnNone = document.getElementById('select-none');
+
+      function renderList() {
+        list.innerHTML = '';
+        for (const id of allSensors) {
+          const row = document.createElement('label');
+          row.className = 'sensor-item';
+
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.checked = selectedSensors.has(id);
+          cb.addEventListener('change', async () => {
+            if (cb.checked) selectedSensors.add(id);
+            else selectedSensors.delete(id);
+            await refresh();
+          });
+
+          const text = document.createElement('span');
+          text.textContent = id;
+
+          row.appendChild(cb);
+          row.appendChild(text);
+          list.appendChild(row);
+        }
+      }
+
+      btnAll.addEventListener('click', async () => {
+        selectedSensors = new Set(allSensors);
+        renderList();
+        await refresh();
+      });
+      btnNone.addEventListener('click', async () => {
+        selectedSensors = new Set();
+        renderList();
+        await refresh();
+      });
+
+      renderList();
+    }
+
+    async function refresh() {
       const status = document.getElementById('status');
-      try {
-        const { sensors } = await fetchJSON('/registered_sensors');
-        status.textContent = `Fetching data for ${sensors.length} sensors...`;
+      const alerts = [];
+      const sensors = getVisibleSensors();
+      if (!sensors.length) {
+        renderAlerts([]);
+        setDetail(null, null);
+        if (chart) {
+          chart.data.labels = [];
+          chart.data.datasets = [];
+          chart.update('none');
+        }
+        status.textContent = `No sensors selected.`;
+        return;
+      }
+      status.textContent = `Fetching data for ${sensors.length} selected sensors...`;
 
-        const results = await Promise.all(
-          sensors.map(id => fetchJSON(`/data/${id}/${NUM_POINTS}`))
-        );
+      const results = await Promise.all(
+        sensors.map(id => fetchJSON(`/data/${id}/${NUM_POINTS}`))
+      );
 
-        const labels = Array.from({ length: NUM_POINTS }, (_, i) => `T${i + 1}`);
+      // Use the first sensor's timestamps as the shared X-axis labels.
+      const labels = (results[0]?.points || []).map(p => p.t || '--:--:--');
 
-        const datasets = results.map((res, idx) => ({
+      const datasets = results.map((res, idx) => {
+        const points = (res.points || []).map(p => {
+          // collect anomalies for log
+          if (p.anomaly_info && p.anomaly_info !== null) {
+            alerts.push({
+              t: p.t,
+              sensor_id: res.sensor_name,
+              anomaly_type: p.anomaly_info.anomaly_type,
+              anomaly_value: p.anomaly_info.anomaly_value,
+              description: p.anomaly_info.description,
+            });
+          }
+          return {
+            x: p.t,
+            y: typeof p.avg === 'number' ? p.avg : parseFloat(p.avg) || 0,
+            min: p.min,
+            max: p.max,
+            std_dev: p.std_dev,
+            anomaly_info: p.anomaly_info,
+          };
+        });
+
+        return {
           label: res.sensor_name,
-          data: res.data.map(v => {
-            const n = parseFloat(v);
-            return isNaN(n) ? 0 : n;
-          }),
+          data: points,
           borderColor: COLORS[idx % COLORS.length],
           backgroundColor: 'transparent',
           borderWidth: 2,
           pointRadius: 3,
           tension: 0.3,
-        }));
+        };
+      });
 
-        new Chart(document.getElementById('sensorChart'), {
+      renderAlerts(alerts);
+
+      if (!chart) {
+        chart = new Chart(document.getElementById('sensorChart'), {
           type: 'line',
           data: { labels, datasets },
           options: {
             responsive: true,
             interaction: { mode: 'index', intersect: false },
+            onClick: (evt) => {
+              if (!chart) return;
+              const hit = chart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+              if (!hit.length) return;
+              const { datasetIndex, index } = hit[0];
+              const ds = chart.data.datasets[datasetIndex];
+              const pt = ds?.data?.[index];
+              setDetail(ds?.label, pt);
+            },
             plugins: {
               legend: {
                 labels: { color: '#ccc', font: { size: 12 } }
               },
-              tooltip: { backgroundColor: '#2a2d3e' }
+              tooltip: {
+                backgroundColor: '#2a2d3e',
+                callbacks: {
+                  label: (ctx) => {
+                    const raw = ctx.raw || {};
+                    const avg = formatNumber(raw.y);
+                    const min = formatNumber(raw.min);
+                    const max = formatNumber(raw.max);
+                    const std = formatNumber(raw.std_dev);
+                    return `${ctx.dataset.label}: avg=${avg}  min=${min}  max=${max}  std=${std}`;
+                  }
+                }
+              }
             },
             scales: {
               x: {
@@ -103,8 +435,32 @@
             }
           }
         });
+        // default selection: latest point from first dataset (if any)
+        const firstDs = chart.data.datasets?.[0];
+        const lastPt = firstDs?.data?.[firstDs.data.length - 1];
+        if (lastPt) setDetail(firstDs.label, lastPt);
+      } else {
+        chart.data.labels = labels;
+        chart.data.datasets = datasets;
+        chart.update('none');
+      }
 
-        status.textContent = `Showing ${sensors.length} sensors, ${NUM_POINTS} data points each.`;
+      status.textContent = `Showing ${sensors.length} sensors, ${NUM_POINTS} data points each. Auto-refresh: ${REFRESH_MS}ms`;
+    }
+
+    async function init() {
+      const status = document.getElementById('status');
+      try {
+        const { sensors } = await fetchJSON('/registered_sensors');
+        buildSensorControls(sensors);
+        await refresh();
+        setInterval(async () => {
+          try {
+            await refresh();
+          } catch (e) {
+            status.textContent = `Error: ${e.message}`;
+          }
+        }, REFRESH_MS);
       } catch (err) {
         status.textContent = `Error: ${err.message}`;
         console.error(err);

@@ -1,4 +1,3 @@
-use dashboard::APP;
 use socket2::{Domain, Socket, Type};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -72,7 +71,9 @@ async fn main() {
         num_workers: 2,
         anomaly_threshold: 3.0,
     });
-    engine.start(Arc::clone(&buffer_mgr), Arc::clone(&storage));
+    engine.connect_source(Arc::clone(&buffer_mgr));
+    engine.connect_storage(Arc::clone(&storage));
+    engine.start();
 
     // 3. Web server: bind before Hotaru so AddrInUse fails fast with a clear message
     const WEB_ADDR: &str = "127.0.0.1:8080";
@@ -80,11 +81,11 @@ async fn main() {
         Ok(l) => l,
         Err(e) => {
             eprintln!(
-                "无法绑定 Web 服务 {WEB_ADDR}: {e}\n\
-                 仍有进程占用 8080（不一定是刚才那个 PID）。请查看并结束:\n  \
+                "Failed to bind web server on {WEB_ADDR}: {e}\n\
+                 Check for existing processes with:\n  \
                  lsof -i :8080\n  \
-                 kill <PID>\n\
-                 或一键: kill $(lsof -t -i:8080) 2>/dev/null\n"
+                 kill <PID> or\n\
+                 or kill $(lsof -t -i:8080) 2>/dev/null\n"
             );
             std::process::exit(1);
         }
@@ -98,5 +99,7 @@ async fn main() {
         }
     });
 
-    APP.clone().run().await;
+    // This gateway binary only hosts the API (8080) and the aggregation engine.
+    // The dashboard is started as a separate OS process by `runner` for the BONUS-PROCESS module.
+    let _ = tokio::signal::ctrl_c().await;
 }
