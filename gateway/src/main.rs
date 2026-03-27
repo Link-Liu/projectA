@@ -1,4 +1,7 @@
 use dashboard::APP;
+use socket2::{Domain, Socket, Type};
+use std::net::SocketAddr;
+use std::sync::Arc;
 use sensor_sim::{
     accelerometer::Accelerometer,
     force_sensor::ForceSensor,
@@ -8,8 +11,29 @@ use sensor_sim::{
 pub mod buffer;
 pub mod DataStorage;
 pub mod AggregatedFrame;
+pub mod web;
 pub mod engine;
 use crate::buffer::{SensorBufferManager, SensorKind};
+
+/// Bind with `SO_REUSEADDR` so dev restarts are less likely to hit TIME_WAIT issues.
+/// If another process is already listening on the port, binding still fails — end that process first.
+async fn bind_web_listener(addr: &str) -> std::io::Result<tokio::net::TcpListener> {
+    let addr: SocketAddr = addr
+        .parse()
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
+    let domain = if addr.is_ipv4() {
+        Domain::IPV4
+    } else {
+        Domain::IPV6
+    };
+    let sock = Socket::new(domain, Type::STREAM, None)?;
+    sock.set_reuse_address(true)?;
+    sock.bind(&addr.into())?;
+    sock.listen(128)?;
+    let std_listener: std::net::TcpListener = sock.into();
+    std_listener.set_nonblocking(true)?;
+    tokio::net::TcpListener::from_std(std_listener)
+}
 
 #[tokio::main]
 async fn main() {
@@ -33,45 +57,46 @@ async fn main() {
     buffer_mgr.register_sensor(accel_2, SensorKind::AccelReading);
     buffer_mgr.register_sensor(force_1, SensorKind::ForceReading);
 
-    // Students are expected to implement using pipe & process instead of threads. 
-    // The thread implementation is provided as a idea to let you know what you may do 
-    let io_handle = std::thread::spawn(move || {
-        // Example gateway loop:
-        // - Read fresh data from each sensor.
-        // - Write that data to per-sensor files (students implement file I/O).
-        // - Later, read those files back so the gateway can process them.
-        loop {
-            if let Some(reading) = buffer_mgr.pop_with_timeout(std::time::Duration::from_millis(100)) {
-                // TODO(student): write `reading` to a file like "data/thermo-1.txt".
-                // TODO(student): read from "data/thermo-1.txt" here if gateway consumes files.
-                let _ = reading;
-            }
-            // if let Some(reading) = thermo_2.read() {
-            //     // TODO(student): write `reading` to a file like "data/thermo-2.txt".
-            //     // TODO(student): read from "data/thermo-2.txt" here if gateway consumes files.
-            //     let _ = reading;
-            // }
-            // if let Some(reading) = accel_1.read() {
-            //     // TODO(student): write `reading` to a file like "data/accel-1.txt".
-            //     // TODO(student): read from "data/accel-1.txt" here if gateway consumes files.
-            //     let _ = reading;
-            // }
-            // if let Some(reading) = accel_2.read() {
-            //     // TODO(student): write `reading` to a file like "data/accel-2.txt".
-            //     // TODO(student): read from "data/accel-2.txt" here if gateway consumes files.
-            //     let _ = reading;
-            // }
-            // if let Some(reading) = force_1.read() {
-            //     // TODO(student): write `reading` to a file like "data/force-1.txt".
-            //     // TODO(student): read from "data/force-1.txt" here if gateway consumes files.
-            //     let _ = reading;
-            // }
+    let buffer_mgr = Arc::new(buffer_mgr);
 
-            std::thread::sleep(std::time::Duration::from_millis(100));
+    // 1. Initialize DataStorage
+    // Ensure the data directory exists before creating the file
+    if let Some(parent) = std::path::Path::new("data/aggregated.json").parent() {
+        std::fs::create_dir_all(parent).unwrap();
+    }
+    let storage = Arc::new(crate::DataStorage::DataStorage::new("data/aggregated.json").unwrap());
+
+    // 2. Start AggregationEngine
+    let mut engine = crate::engine::AggregationEngine::new(crate::engine::EngineConfiguration {
+        window_duration: std::time::Duration::from_secs(1),
+        num_workers: 2,
+        anomaly_threshold: 3.0,
+    });
+    engine.start(Arc::clone(&buffer_mgr), Arc::clone(&storage));
+
+    // 3. Web server: bind before Hotaru so AddrInUse fails fast with a clear message
+    const WEB_ADDR: &str = "127.0.0.1:8080";
+    let web_listener = match bind_web_listener(WEB_ADDR).await {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!(
+                "无法绑定 Web 服务 {WEB_ADDR}: {e}\n\
+                 仍有进程占用 8080（不一定是刚才那个 PID）。请查看并结束:\n  \
+                 lsof -i :8080\n  \
+                 kill <PID>\n\
+                 或一键: kill $(lsof -t -i:8080) 2>/dev/null\n"
+            );
+            std::process::exit(1);
+        }
+    };
+
+    let web_storage = Arc::clone(&storage);
+    let web_server = crate::web::WebServer::new(web_storage);
+    tokio::spawn(async move {
+        if let Err(e) = web_server.serve(web_listener).await {
+            eprintln!("Web server stopped: {e}");
         }
     });
 
     APP.clone().run().await;
-
-    let _ = io_handle.join(); 
 }

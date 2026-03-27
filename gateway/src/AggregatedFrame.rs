@@ -1,14 +1,14 @@
 //This file is the final output of the Component 2(Aggregation Engine), and also the Input of the Component 3(DataStorage)
 
 // Import Serialize trait from the serde crate( Allows structs to be converted to JSON format)
-use serde::Serialize;
+// use serde::{Serialize, Deserialize};
 
 // Import SystemTime 
 // Use: Records timestamps 
 use std::time::SystemTime;
 
 //Data structure for sensor statistical information
-#[derive(Serialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct SensorInfo {
     // pub = Public (accessible by other modules from other components)
     pub sensor_id: String,       // sensor ID 
@@ -19,7 +19,7 @@ pub struct SensorInfo {
     pub std_dev: f64,            // Standard deviation 
 }
 
-#[derive(Serialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct AnomalyInfo {
     pub sensor_id: String,       // ID of the sensor with anomalies
     pub anomaly_type: String,    // Type of anomaly (e.g., "sudden value spike")
@@ -31,7 +31,7 @@ pub struct AnomalyInfo {
 // Core data structure: AggregatedFrame
 // Output of Component 2, Input of Component 3
 
-#[derive(Serialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct AggregatedFrame {
     pub frame_id: String,               //frame ID 
     pub window_start: SystemTime,       // Start time 
