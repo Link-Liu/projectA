@@ -96,8 +96,8 @@ impl SensorBufferManager {
         // BONUS-THREAD-JUSTIFICATION:
         // This thread is an internal implementation detail of the buffer manager.
         // It provides high-frequency sensor sampling with cheap shared-memory buffering inside ONE process.
-        // The project’s BONUS-PROCESS requirement is demonstrated separately via an OS-level supervisor
-        // (`runner`) which spawns `gateway` and `dashboard` as independent processes.
+        // BONUS-PROCESS is demonstrated by `gateway` spawning `dashboard` as a separate OS process
+        // (see `gateway/src/main.rs`), not by replacing all internal threads.
         let handle = std::thread::spawn(move || {
             // clone the sensor
             let sensor = sensor;

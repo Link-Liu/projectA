@@ -3,9 +3,9 @@ members = [
     "os_lib",
     "sensor_sim",
     "dashboard",
-    "gateway", "runner",
+    "gateway",
 ]
-default-members = ["runner"]
+default-members = ["gateway"]
 resolver = "3"
 
 [workspace.package]

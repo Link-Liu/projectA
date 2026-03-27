@@ -1,6 +1,7 @@
 use socket2::{Domain, Socket, Type};
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio::process::Command;
 use sensor_sim::{
     accelerometer::Accelerometer,
     force_sensor::ForceSensor,
@@ -99,7 +100,28 @@ async fn main() {
         }
     });
 
-    // This gateway binary only hosts the API (8080) and the aggregation engine.
-    // The dashboard is started as a separate OS process by `runner` for the BONUS-PROCESS module.
-    let _ = tokio::signal::ctrl_c().await;
+    // BONUS-PROCESS:
+    // Spawn `dashboard` as a separate OS process from within `gateway`.
+    // This replaces the previous thread-based approach and demonstrates process lifecycle management.
+    let mut dashboard_child = Command::new("cargo")
+        .args(["run", "-p", "dashboard"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .spawn()
+        .expect("failed to spawn dashboard process");
+
+    eprintln!("[gateway] spawned dashboard pid={}", dashboard_child.id().unwrap_or(0));
+
+    // Keep gateway alive; shut down dashboard on Ctrl+C, or exit if dashboard exits unexpectedly.
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {
+            eprintln!("[gateway] Ctrl+C received, stopping dashboard...");
+            let _ = dashboard_child.kill().await;
+            let _ = dashboard_child.wait().await;
+        }
+        status = dashboard_child.wait() => {
+            eprintln!("[gateway] dashboard exited: {:?}", status);
+        }
+    }
 }
