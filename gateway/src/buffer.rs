@@ -116,10 +116,6 @@ impl SensorBufferManager {
                     else {
                         // data loss here, we alarm the user
                         shared_buffer.pop_front();
-                        let data = SensorData {
-                            id: sensor.id(),
-                            kind: converter(content),
-                        };
                         shared_buffer.push_back(data);
                         // increase the overwrite count and the write count
                         // we overwrite the oldest data

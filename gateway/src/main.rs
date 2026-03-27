@@ -9,7 +9,7 @@ pub mod buffer;
 pub mod DataStorage;
 pub mod AggregatedFrame;
 pub mod engine;
-use crate::buffer::{SensorBufferManager, SensorData};
+use crate::buffer::{SensorBufferManager, SensorKind};
 
 #[tokio::main]
 async fn main() {
@@ -27,11 +27,11 @@ async fn main() {
     accel_2.start();
     force_1.start();
     let mut buffer_mgr = SensorBufferManager::new(10000);
-    buffer_mgr.register_sensor(thermo_1, SensorData::ThermoReading);
-    buffer_mgr.register_sensor(thermo_2, SensorData::ThermoReading);
-    buffer_mgr.register_sensor(accel_1, SensorData::AccelReading);
-    buffer_mgr.register_sensor(accel_2, SensorData::AccelReading);
-    buffer_mgr.register_sensor(force_1, SensorData::ForceReading);
+    buffer_mgr.register_sensor(thermo_1, SensorKind::ThermoReading);
+    buffer_mgr.register_sensor(thermo_2, SensorKind::ThermoReading);
+    buffer_mgr.register_sensor(accel_1, SensorKind::AccelReading);
+    buffer_mgr.register_sensor(accel_2, SensorKind::AccelReading);
+    buffer_mgr.register_sensor(force_1, SensorKind::ForceReading);
 
     // Students are expected to implement using pipe & process instead of threads. 
     // The thread implementation is provided as a idea to let you know what you may do 
