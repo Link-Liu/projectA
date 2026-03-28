@@ -59,6 +59,21 @@ async fn main() {
 
     let buffer_mgr = Arc::new(buffer_mgr);
 
+    // Periodic log of central buffer stats (demo / live verification).
+    let stats_mgr = Arc::clone(&buffer_mgr);
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(8));
+        loop {
+            interval.tick().await;
+            let s = stats_mgr.get_stats();
+            let util_pct = s.utilization * 100.0;
+            eprintln!(
+                "[buffer] utilization={util_pct:.1}% overwrites={} write_rate={:.1}/s pop_rate={:.1}/s",
+                s.overwrite_count, s.write_rate, s.pop_rate
+            );
+        }
+    });
+
     // 1. Initialize DataStorage
     // Ensure the data directory exists before creating the file
     if let Some(parent) = std::path::Path::new("data/aggregated.json").parent() {

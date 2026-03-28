@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, Condvar};
 use std::thread::JoinHandle;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use sensor_sim::accelerometer::AccelReading;
 use sensor_sim::force_sensor::ForceReading;
 use sensor_sim::thermometer::ThermoReading;
@@ -28,6 +28,13 @@ pub struct BufferStats {
 }
 
 /// Component 1: Buffer Management
+/// 
+/// SensorBufferManager is a component that manages the buffer for the sensor data.
+/// It is responsible for the following:
+/// 1. Registering sensors
+/// 2. Popping data from the buffer
+/// 3. Getting buffer statistics
+/// 4. Shutting down the buffer
 pub struct SensorBufferManager {
     capacity: usize, // how many data we have
     buffer: Arc<Mutex<VecDeque<SensorData>>>, // the buffer that stores the data
@@ -100,6 +107,12 @@ impl SensorBufferManager {
         // (see `gateway/src/main.rs`), not by replacing all internal threads.
         let handle = std::thread::spawn(move || {
             let sensor = sensor;
+            let sensor_id = sensor.id();
+            // Demo / monitoring: log simulated sensor queue depth (~128 slots max in sensor_sim).
+            // Throttle logs so demo output is readable (5 sensors × frequent prints = noisy).
+            const SENSOR_AVAIL_LOG_INTERVAL: Duration = Duration::from_secs(5);
+            let mut last_avail_log = Instant::now();
+
             // while the buffer is not stopped
             while !*stop_flag.lock().unwrap() {
                 // while the sensor has data, we read all the data from the sensor
@@ -130,8 +143,17 @@ impl SensorBufferManager {
                         println!("Attention! Buffer is full, overwriting oldest data");
                     }
                 }
-                std::thread::sleep(Duration::from_millis(10));
 
+                // Throttled: show per-sensor internal queue backlog (should stay low if reader keeps up).
+                if last_avail_log.elapsed() >= SENSOR_AVAIL_LOG_INTERVAL {
+                    last_avail_log = Instant::now();
+                    let avail = sensor.available();
+                    eprintln!(
+                        "[reader {sensor_id}] simulated sensor queue: available={avail} (danger if near ~127)"
+                    );
+                }
+
+                std::thread::sleep(Duration::from_millis(10));
             }
         });
         self.readers.push(handle);

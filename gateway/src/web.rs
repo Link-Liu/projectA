@@ -16,7 +16,7 @@ pub struct WebServer {
     /// the storage to read the data from
     storage: SharedState,
 }
-
+// Component 4: Web Server 
 impl WebServer {
     /// Constructs a web server that reads aggregated data from the given storage.
     /// 
