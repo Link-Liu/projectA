@@ -99,7 +99,6 @@ impl SensorBufferManager {
         // BONUS-PROCESS is demonstrated by `gateway` spawning `dashboard` as a separate OS process
         // (see `gateway/src/main.rs`), not by replacing all internal threads.
         let handle = std::thread::spawn(move || {
-            // clone the sensor
             let sensor = sensor;
             // while the buffer is not stopped
             while !*stop_flag.lock().unwrap() {

@@ -50,7 +50,7 @@ async fn main() {
     accel_1.start();
     accel_2.start();
     force_1.start();
-    let mut buffer_mgr = SensorBufferManager::new(10000);
+    let mut buffer_mgr = SensorBufferManager::new(1000);
     buffer_mgr.register_sensor(thermo_1, SensorKind::ThermoReading);
     buffer_mgr.register_sensor(thermo_2, SensorKind::ThermoReading);
     buffer_mgr.register_sensor(accel_1, SensorKind::AccelReading);
@@ -85,8 +85,7 @@ async fn main() {
                 "Failed to bind web server on {WEB_ADDR}: {e}\n\
                  Check for existing processes with:\n  \
                  lsof -i :8080\n  \
-                 kill <PID> or\n\
-                 or kill $(lsof -t -i:8080) 2>/dev/null\n"
+                 kill -9 <PID>"
             );
             std::process::exit(1);
         }
