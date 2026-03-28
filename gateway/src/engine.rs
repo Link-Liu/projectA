@@ -106,13 +106,16 @@ impl AggregationEngine {
     // Start processing
     pub fn start(&mut self)
     {
+        // Ensure data source and storage are connected before starting
         let buffer_manager = self.buffer_manager.as_ref().expect("Error: Sensor Buffer Manager not connected").clone();
         let storage = self.storage.as_ref().expect("Error: Data Storage not connected").clone();
 
         let num_workers = self.config.num_workers;
 
+        // Spawn worker threads to process sensor data
         for i in 0..num_workers 
         {
+            // Clone Arc pointers to share references across threads
             let shutdown = Arc::clone(&self.shutdown_flag);
             let buffer = Arc::clone(&buffer_manager);
             let storage_out = Arc::clone(&storage);
@@ -122,13 +125,18 @@ impl AggregationEngine {
 
             let handle = thread::spawn(move || 
             {
+                // Each worker maintains its own map and timer to avoid locking
                 let mut sensor_map: HashMap<String, SensorStats> = HashMap::new();
                 let mut window_start = Instant::now();
 
-                while !shutdown.load(Ordering::SeqCst) {
+                // Main processing loop, runs until shutdown flag set to true
+                while !shutdown.load(Ordering::SeqCst) 
+                {
+                    // Use short timeout to periodically check shutdown flag
                     if let Some(sensor_data) = buffer.pop_with_timeout(Duration::from_millis(100)) {
                         let id = sensor_data.id;
 
+                        // Convert 3D vector readings into a 1D scalar magnitude for easier statistical processing.
                         let val = match sensor_data.kind {
                             SensorKind::ThermoReading(t) => t.temperature_celsius as f64,
                             SensorKind::AccelReading(a) => 
@@ -139,6 +147,7 @@ impl AggregationEngine {
                                 (f.force_x * f.force_x  + f.force_y * f.force_y  + f.force_z * f.force_z).sqrt() as f64  
                             }
                         };
+                        // Update statistics for this sensor
                         let stats= sensor_map.entry(id.clone()).or_insert_with(SensorStats::new);
                         stats.update(val);
 
@@ -149,9 +158,12 @@ impl AggregationEngine {
                         }
                     }
 
+                    // Check if current time window has elapsed
                     if window_start.elapsed() >= window_dur {
                         let now = std::time::SystemTime::now();
                         let start_time = now - window_dur;
+
+                        // Iterate through all collected stats, turn them into AggregatedFrame and push to storage
                         for (id, stats) in &sensor_map
                         {
                             let sensor_info = SensorInfo
@@ -171,8 +183,9 @@ impl AggregationEngine {
                                 sensor_info,
                                 anomaly_info: None, 
                             };
-                            storage_out.write(frame);
+                            storage_out.write(frame).expect("Failed to write aggregated frame to storage");
                         }
+                    // Clear the map and reset the timer for the next window
                     sensor_map.clear();
                     window_start = Instant::now();
 
