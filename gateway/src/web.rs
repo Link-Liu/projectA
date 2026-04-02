@@ -97,3 +97,62 @@ async fn handle_stats(State(storage): State<SharedState>) -> Json<serde_json::Va
     
     Json(stats)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::AggregatedFrame::{AggregatedFrame, SensorInfo};
+    use std::path::PathBuf;
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+    fn unique_temp_file(name: &str) -> PathBuf {
+        // Create a unique temp file path for isolated test runs.
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or(Duration::from_secs(0))
+            .as_nanos();
+        std::env::temp_dir().join(format!("{}_{}_{}.jsonl", name, std::process::id(), nanos))
+    }
+
+    fn sample_frame(frame_id: &str, sensor_id: &str) -> AggregatedFrame {
+        AggregatedFrame {
+            frame_id: frame_id.to_string(),
+            window_start: SystemTime::now(),
+            window_end: SystemTime::now(),
+            sensor_info: SensorInfo {
+                sensor_id: sensor_id.to_string(),
+                total_readings: 3,
+                min_value: 10.0,
+                max_value: 30.0,
+                avg_value: 20.0,
+                std_dev: 8.0,
+            },
+            anomaly_info: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_handle_stats_counts_all_records() {
+        let path = unique_temp_file("web_stats_test");
+        let storage = Arc::new(
+            DataStorage::new(path.to_str().expect("valid temp path"))
+                .expect("failed to create storage"),
+        );
+
+        storage
+            .write(sample_frame("frame-1", "sensor-a"))
+            .expect("failed to write first frame");
+        storage
+            .write(sample_frame("frame-2", "sensor-b"))
+            .expect("failed to write second frame");
+
+        let response = handle_stats(State(Arc::clone(&storage))).await;
+        let payload = response.0;
+
+        // Ensure stats reflect the current number of stored lines.
+        assert_eq!(payload["total_records"], serde_json::json!(2));
+        assert_eq!(payload["status"], serde_json::json!("running"));
+
+        let _ = std::fs::remove_file(path);
+    }
+}

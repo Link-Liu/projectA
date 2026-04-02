@@ -93,3 +93,56 @@ impl DataStorage {
         &self.file_path
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::AggregatedFrame::{AggregatedFrame, SensorInfo};
+    use std::path::PathBuf;
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+    fn unique_temp_file(name: &str) -> PathBuf {
+        // Build a unique file path under the system temp directory.
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or(Duration::from_secs(0))
+            .as_nanos();
+        std::env::temp_dir().join(format!("{}_{}_{}.jsonl", name, std::process::id(), nanos))
+    }
+
+    fn sample_frame(sensor_id: &str) -> AggregatedFrame {
+        AggregatedFrame {
+            frame_id: "frame-1".to_string(),
+            window_start: SystemTime::now(),
+            window_end: SystemTime::now(),
+            sensor_info: SensorInfo {
+                sensor_id: sensor_id.to_string(),
+                total_readings: 5,
+                min_value: 1.0,
+                max_value: 9.0,
+                avg_value: 5.0,
+                std_dev: 2.0,
+            },
+            anomaly_info: None,
+        }
+    }
+
+    #[test]
+    fn test_write_then_read_file_contains_record() {
+        let path = unique_temp_file("datastorage_test");
+        let storage = DataStorage::new(path.to_str().expect("valid temp path"))
+            .expect("failed to create storage");
+
+        storage
+            .write(sample_frame("sensor-1"))
+            .expect("failed to write frame");
+
+        let content = storage.read_file().expect("failed to read file");
+
+        // Verify that one JSON line exists and includes the expected sensor id.
+        assert_eq!(content.lines().count(), 1);
+        assert!(content.contains("\"sensor_id\":\"sensor-1\""));
+
+        let _ = std::fs::remove_file(path);
+    }
+}
