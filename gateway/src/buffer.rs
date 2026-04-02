@@ -7,7 +7,7 @@ use sensor_sim::force_sensor::ForceReading;
 use sensor_sim::thermometer::ThermoReading;
 use sensor_sim::traits::Sensor;
 
-/// SensorData is the data type for the sensor data
+
 pub struct SensorData {
     pub id: String,
     pub kind: SensorKind,
@@ -19,7 +19,7 @@ pub enum SensorKind {
     ForceReading(ForceReading),
 }
 
-/// used to store the buffer statistics
+
 pub struct BufferStats {
     pub utilization: f32,
     pub overwrite_count: usize,
@@ -27,14 +27,7 @@ pub struct BufferStats {
     pub pop_rate: f32
 }
 
-/// Component 1: Buffer Management
-/// 
-/// SensorBufferManager is a component that manages the buffer for the sensor data.
-/// It is responsible for the following:
-/// 1. Registering sensors
-/// 2. Popping data from the buffer
-/// 3. Getting buffer statistics
-/// 4. Shutting down the buffer
+
 pub struct SensorBufferManager {
     capacity: usize, // how many data we have
     buffer: Arc<Mutex<VecDeque<SensorData>>>, // the buffer that stores the data
@@ -48,18 +41,7 @@ pub struct SensorBufferManager {
 }
 
 impl SensorBufferManager {
-    /// Create a manager with buffer capacity
-    /// 
-    ///  Parameters:
-    ///  - capacity: the capacity of the buffer
-    /// 
-    ///  Returns:
-    ///  - A new SensorBufferManager
-    /// 
-    /// Example:
-    /// ```
-    /// let buffer_mgr = SensorBufferManager::new(10000);
-    /// ```
+    
     pub fn new(capacity: usize) -> Self {
         let buffer = Arc::new(Mutex::new(VecDeque::with_capacity(capacity)));
         SensorBufferManager {
@@ -75,19 +57,7 @@ impl SensorBufferManager {
         }
     }
 
-    ///  Register a Sensor (spawns reader thread)
-    ///  Parameters:
-    ///  - sensor: the sensor to register
-    ///  - converter: a function to convert the sensor data to SensorData
-    /// 
-    ///  Returns:
-    ///  - None
-    /// 
-    /// Example:
-    /// ```
-    /// let buffer_mgr = SensorBufferManager::new(10000);
-    /// buffer_mgr.register_sensor(sensor, converter);
-    /// ```
+    
     pub fn register_sensor<S, F>(&mut self, sensor: S, converter: F ) 
     where 
     S: Sensor + Send + 'static,
@@ -159,18 +129,7 @@ impl SensorBufferManager {
         self.readers.push(handle);
     }
 
-    /// Pop reading for processing (blocking)
-    /// 
-    ///  Parameters:
-    ///  - None
-    /// 
-    ///  Returns:
-    ///  - The data from the buffer
-    /// 
-    /// Example:
-    /// ```
-    /// let data = buffer_mgr.pop_blocking();
-    /// ```
+    
     pub fn pop_blocking(&self) -> SensorData {
         let mut shared_buffer = self.buffer.lock().unwrap();
         // while the buffer is empty, we wait for the data
@@ -181,18 +140,7 @@ impl SensorBufferManager {
         *pop_count += 1;
         return shared_buffer.pop_front().unwrap()
     }
-    /// Pop with timeout
-    /// 
-    ///  Parameters:
-    ///  - duration: the timeout duration
-    /// 
-    ///  Returns:
-    ///  - The data from the buffer
-    /// 
-    /// Example:
-    /// ```
-    /// let data = buffer_mgr.pop_with_timeout(Duration::from_millis(100));
-    /// ```
+
     pub fn pop_with_timeout(&self, duration: Duration) -> Option<SensorData> {
            let mut shared_buffer = self.buffer.lock().unwrap();
            // while the buffer is empty, we wait for the data
@@ -222,18 +170,7 @@ impl SensorBufferManager {
            }
     }
     
-    /// Get buffer utilization statistics
-    /// 
-    ///  Parameters:
-    ///  - None
-    /// 
-    ///  Returns:
-    ///  - The buffer statistics
-    /// 
-    /// Example:
-    /// ```
-    /// let stats = buffer_mgr.get_stats();
-    /// ```
+    
     pub fn get_stats(&self) -> BufferStats {
         let shared_buffer = self.buffer.lock().unwrap();
         let count = shared_buffer.len();
@@ -253,18 +190,7 @@ impl SensorBufferManager {
 
     }
     
-    /// Shutdown all reader threads
-    /// 
-    ///  Parameters:
-    ///  - None
-    /// 
-    ///  Returns:
-    ///  - None
-    /// 
-    /// Example:
-    /// ```
-    /// buffer_mgr.shutdown();
-    /// ```
+    
     pub fn shutdown(&mut self) {
         // we set the stop flag to true, use local variable to avoid dead lock
         {
@@ -275,5 +201,36 @@ impl SensorBufferManager {
             let handle = self.readers.pop().unwrap();
             let _ = handle.join().unwrap();
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+    // 引入 Thermometer 和 Sensor trait
+    use sensor_sim::thermometer::Thermometer;
+    use sensor_sim::traits::Sensor;
+
+    #[test]
+    fn test_buffer_manager() {
+       
+        let mut buffer_mgr = SensorBufferManager::new(10);
+        let mut thermo = Thermometer::new("sensor1".to_string(), 50);
+        
+        thermo.start();
+
+        buffer_mgr.register_sensor(thermo, SensorKind::ThermoReading);
+
+        std::thread::sleep(Duration::from_millis(100));
+        {
+            let len = buffer_mgr.buffer.lock().unwrap().len();
+            assert!(len > 0, "Buffer should have data after sensor starts producing");
+        }
+        let popped_data = buffer_mgr.pop_blocking();
+        assert_eq!(popped_data.id, "sensor1");
+
+        buffer_mgr.shutdown();
     }
 }

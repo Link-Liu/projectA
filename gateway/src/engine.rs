@@ -206,3 +206,89 @@ impl AggregationEngine {
         }
     }
 }
+
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::time::Duration;
+
+  
+    #[test]
+    fn test_sensor_stats_basic() {
+        let mut stats = SensorStats::new();
+        assert_eq!(stats.count, 0);
+        assert_eq!(stats.mean, 0.0);
+        
+        // input test values: 10.0, 20.0, 30.0
+        stats.update(10.0);
+        assert_eq!(stats.count, 1);
+        assert_eq!(stats.min, 10.0);
+        assert_eq!(stats.max, 10.0);
+        assert_eq!(stats.mean, 10.0);
+
+        stats.update(20.0);
+        assert_eq!(stats.count, 2);
+        assert_eq!(stats.min, 10.0);
+        assert_eq!(stats.max, 20.0);
+        assert_eq!(stats.mean, 15.0);
+
+        stats.update(30.0);
+        assert_eq!(stats.count, 3);
+        assert_eq!(stats.min, 10.0);
+        assert_eq!(stats.max, 30.0);
+        assert_eq!(stats.mean, 20.0);
+
+        // sqrt(((10-20)^2 + (20-20)^2 + (30-20)^2) / 3) = sqrt(200 / 3) ≈ 8.1649
+        let std_dev = stats.get_std_dev();
+        assert!((std_dev - 8.1649).abs() < 0.001, "Standard deviation calculation is incorrect");
+    }
+
+    #[test]
+    fn test_sensor_stats_constant_values() {
+        let mut stats = SensorStats::new();
+        // input the same numbers to test if std_dev is zero
+        for _ in 0..10 {
+            stats.update(5.0);
+        }
+        assert_eq!(stats.count, 10);
+        assert_eq!(stats.mean, 5.0);
+        assert_eq!(stats.min, 5.0);
+        assert_eq!(stats.max, 5.0);
+        assert_eq!(stats.get_std_dev(), 0.0);
+    }
+
+
+    #[test]
+    fn test_engine_lifecycle() {
+        
+        let config = EngineConfiguration {
+            window_duration: Duration::from_millis(50),
+            num_workers: 2,
+            anomaly_threshold: 3.0,
+        };
+
+        
+        let buffer_manager = Arc::new(SensorBufferManager::new(100));
+        
+        let test_file = "test_engine_lifecycle_storage.json";
+        let _ = fs::remove_file(test_file); 
+        
+        let storage = Arc::new(DataStorage::new(test_file).unwrap());
+
+        let mut engine = AggregationEngine::new(config);
+        engine.connect_source(buffer_manager);
+        engine.connect_storage(storage);
+
+        engine.start();
+        assert_eq!(engine.workers.len(), 2, "Engine should spawn exactly 2 workers");
+
+        std::thread::sleep(Duration::from_millis(150));
+
+        engine.shutdown();
+        
+        let _ = fs::remove_file(test_file);
+    }
+}
